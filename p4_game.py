@@ -466,7 +466,7 @@ class Mantis(GameObject):
     super(Mantis, self).__init__(world)
     self.time_to_next_decision = 0
     self.target = None
-    self.speed = 200
+    self.speed = 50
     self.radius = 5
     self.color = '#484'
 
