@@ -6,7 +6,7 @@ import sys
 import math
 import heapq
 
-class World:
+class MicroDirector:
   """container for many GameObject instances and some global parameters"""
 
   def __init__(self, width, height):
@@ -18,6 +18,25 @@ class World:
     self.sel_b = None
     self.selection = {}
     self.time = 0
+    self.ai_on_off = Tkinter.IntVar()
+    self.change_text = Tkinter.StringVar()
+    c = Tkinter.Button(master, textvariable=self.change_text, command=self.callback)
+    c.grid(row=1, column=0)
+    self.change_text.set("Micro-Director is off")
+    self.ai_on_off.set(0)
+    self.intensity = 0.0
+    self.minimum_threshold = 0.0
+    self.maximum_threshold = 1.0
+
+  def callback(self):
+    if not self.ai_on_off.get():
+      self.change_text.set("Micro-Director is on")
+      self.ai_on_off.set(1)
+      #print self.ai_on_off.get()
+    else:
+      self.change_text.set("Micro-Director is off")
+      self.ai_on_off.set(0)
+      #print self.ai_on_off.get()
 
   def register(self, obj):
     """add a GameObject to the all_objects and objects_by_class lists"""
@@ -49,7 +68,7 @@ class World:
     canvas.delete(Tkinter.ALL)
 
     # backdrop
-    canvas.create_rectangle(0, 0, self.width, self.height, fill='#eba', outline='')
+    canvas.create_rectangle(0, 0, self.width, self.height, fill='grey', outline='')
 
     # child objects
     for obj in self.all_objects:
@@ -79,6 +98,8 @@ class World:
           outline='green',
           fill='',
           width=2.0)
+
+
 
   def build_distance_field(self, target, blockers=[], expansion=0):
     """build a low-resolution distance map and return a function that uses
@@ -457,7 +478,7 @@ class Slug(GameObject):
     self.time_to_next_decision = 0
     self.speed = 100
     self.radius = 20
-    self.color = 'yellow'
+    self.color = 'blue'    
 
 class Mantis(GameObject):
   """indigenous lifeforms, mostly harmless"""
@@ -466,23 +487,29 @@ class Mantis(GameObject):
     super(Mantis, self).__init__(world)
     self.time_to_next_decision = 0
     self.target = None
+<<<<<<< HEAD:p4_game.py
     self.speed = 50
     self.radius = 5
     self.color = '#484'
+=======
+    self.speed = 200
+    self.radius = 10
+    self.color = 'red'
+>>>>>>> dc8f4e76dfaa688f71649200801b7eb527ebbab4:final_game.py
 
-import p4_brains
+import final_brains
 
 CANVAS_WIDTH = 800
 CANVAS_HEIGHT = 600
 
 master = Tkinter.Tk()
-master.title("Tears of the Mantis: Legends of Xenocide")
+master.title("2D Survival/Shooter Prototype with Micro-Director AI")
 
-world = World(CANVAS_WIDTH, CANVAS_WIDTH)
-world.populate(p4_brains.world_specification, p4_brains.brain_classes)
+world = MicroDirector(CANVAS_WIDTH, CANVAS_WIDTH)
+world.populate(final_brains.world_specification, final_brains.brain_classes)
 
 canvas = Tkinter.Canvas(master, width=CANVAS_WIDTH, height=CANVAS_HEIGHT) 
-canvas.pack()
+canvas.grid(row=0, column=0)
 
 SIMULATION_TICK_DELAY_MS = 10.0
 GRAPHICS_TICK_DELAY_MS = 30.0
@@ -528,6 +555,7 @@ master.bind('<Double-Button-1>', left_button_double)
 master.bind('<B1-Motion>', left_button_move)
 master.bind('<ButtonRelease-1>', left_button_up)
 master.bind('<ButtonPress-2>', right_button_down)
+master.bind('<ButtonPress-3>', right_button_down)
 master.bind('<Key>', key_down)
 master.bind('<Escape>', lambda event: master.quit())
 
