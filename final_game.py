@@ -374,29 +374,18 @@ class MicroDirector:
   def issue_selection_order(self, order):
     """apply user's order (a key or right-click location) to the selected
     objects"""
-
-    for obj in self.selection:
-      if obj.brain:
-        obj.brain.handle_event('order',order)
-
-  def make_selection(self):
-    """build selection from the set of units contained in the sel_a-to-sel_b
-    bounding box"""
-
-    top_left = (min(self.sel_a[0], self.sel_b[0]), min(self.sel_a[1], self.sel_b[1]))
-    bottom_right = (max(self.sel_a[0], self.sel_b[0]), max(self.sel_a[1], self.sel_b[1]))
-    self.selection = {}
-    for obj in self.objects_by_class[Player]:
-      if      top_left[0] < obj.position[0] \
-          and top_left[1] < obj.position[1] \
-          and obj.position[0] < bottom_right[0] \
-          and obj.position[1] < bottom_right[1]:
-            self.selection[obj] = True
-    self.sel_a = None
-    self.sel_b = None
-
-  def clear_selection(self):
-    self.selection = {}
+    for obj in self.all_objects:
+      if obj.name == 'Player':
+        if obj.brain:
+          obj.brain.handle_event('order',order)
+   
+  def shoot(self):
+    for obj in self.all_objects:
+      if obj.name == 'Mantis':
+        xdiff = abs(obj.position[0] - self.sel_b[0])
+        ydiff = abs(obj.position[1] - self.sel_b[1])
+        if (math.sqrt((math.pow(xdiff, 2)) + (math.pow(ydiff, 2)))) <= 20:
+          world.unregister(obj)
 
   def set_spawn_point(self, obj):
     where = self.bbox(obj)
@@ -672,23 +661,22 @@ master.after_idle(global_simulation_tick)
 master.after_idle(global_graphics_tick)
 
 def left_button_down(event):
-  world.sel_a = (event.x, event.y)
-  if world.selection:
-    world.clear_selection()
+  world.sel_b = (event.x, event.y)
+  world.shoot()
 
-def left_button_double(event):
-  world.sel_a = (0,0)
-  world.sel_b = (world.width, world.height)
-  world.make_selection()
+#def left_button_double(event):
+  #world.sel_a = (0,0)
+  #world.sel_b = (world.width, world.height)
+  #world.make_selection()
 
-def left_button_move(event):
-  if world.sel_a:
-    world.sel_b = (event.x, event.y)
+#def left_button_move(event):
+  #if world.sel_a:
+    #world.sel_b = (event.x, event.y)
 
-def left_button_up(event):
-  if world.sel_a:
-    world.sel_b = (event.x, event.y)
-    world.make_selection()
+#def left_button_up(event):
+  #if world.sel_a:
+    #world.sel_b = (event.x, event.y)
+    #world.make_selection()
 
 def right_button_down(event):
   world.issue_selection_order((event.x, event.y))
@@ -697,9 +685,9 @@ def key_down(event):
   world.issue_selection_order(event.char)
 
 master.bind('<ButtonPress-1>', left_button_down)
-master.bind('<Double-Button-1>', left_button_double)
-master.bind('<B1-Motion>', left_button_move)
-master.bind('<ButtonRelease-1>', left_button_up)
+#master.bind('<Double-Button-1>', left_button_double)
+#master.bind('<B1-Motion>', left_button_move)
+#master.bind('<ButtonRelease-1>', left_button_up)
 master.bind('<ButtonPress-2>', right_button_down)
 master.bind('<ButtonPress-3>', right_button_down)
 master.bind('<Key>', key_down)
