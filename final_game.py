@@ -263,7 +263,7 @@ class MicroDirector:
       else: #where == "q4"
         return (780, 580)
 
-  def eject_colliders(self, firsts, seconds, randomize=False, handler=None):
+  """def eject_colliders(self, firsts, seconds, randomize=False, handler=None):
     
     def eject(o1, o2):
       if o1 != o2:
@@ -309,7 +309,7 @@ class MicroDirector:
           for o1 in active_firsts:
             eject(o1,o2)
         else:
-          del active_seconds[o2]
+          del active_seconds[o2]"""
 
   def populate(self, specification, brain_classes):
     """create an interesting randomized level design"""
@@ -352,8 +352,8 @@ class MicroDirector:
       m.set_alarm(0)
       self.register(m)
 
-    for i in range(10): # jiggle the world around for a while so it looks pretty
-      self.eject_colliders(self.all_objects,self.all_objects,randomize=True)
+    #for i in range(10): # jiggle the world around for a while so it looks pretty
+      #self.eject_colliders(self.all_objects,self.all_objects,randomize=True)
 
   def find_nearest(self, searcher, clazz=None, where=None):
     """find the nearest object of the given class and property according to
