@@ -1,4 +1,4 @@
-
+import final_brains
 import Tkinter
 import collections
 import random
@@ -13,6 +13,7 @@ class MicroDirector:
     self.width = width
     self.height = height
     self.all_objects = []
+    self.player = []
     self.objects_by_class = collections.defaultdict(list)
     self.sel_a = None
     self.sel_b = None
@@ -20,13 +21,23 @@ class MicroDirector:
     self.time = 0
     self.ai_on_off = Tkinter.IntVar()
     self.change_text = Tkinter.StringVar()
-    c = Tkinter.Button(master, textvariable=self.change_text, command=self.callback)
-    c.grid(row=1, column=0)
+    b = Tkinter.Button(master, textvariable=self.change_text, command=self.callback)
+    b.grid(row=1, column=1)
     self.change_text.set("Micro-Director is off")
     self.ai_on_off.set(0)
     self.intensity = 0.0
     self.minimum_threshold = 0.0
     self.maximum_threshold = 1.0
+    self.spawn_ammo = False
+    self.spawn_health = False
+    self.max_health = 1
+    self.health_amount = 0
+    self.max_ammo = 2
+    self.current_state = Tkinter.StringVar()
+    self.current_state.set("insane")
+    self.zombie_amount = Tkinter.IntVar()
+    self.zombie_amount.set(0)
+    self.zombie_state = "curious"
 
   def callback(self):
     if not self.ai_on_off.get():
@@ -37,6 +48,19 @@ class MicroDirector:
       self.change_text.set("Micro-Director is off")
       self.ai_on_off.set(0)
       #print self.ai_on_off.get()
+
+  def bbox(self, obj):
+    x, y = obj.position
+    if x <= self.width/2:
+      if y <= self.height/2:
+        return "q1"
+      else:
+        return "q3"
+    elif x > self.width/2:
+      if y <= self.height/2:
+        return "q2"
+      else:
+        return "q4"
 
   def register(self, obj):
     """add a GameObject to the all_objects and objects_by_class lists"""
@@ -69,6 +93,14 @@ class MicroDirector:
 
     # backdrop
     canvas.create_rectangle(0, 0, self.width, self.height, fill='grey', outline='')
+    s = Tkinter.Label(master, text="Intensity")
+    s.grid(row=1, column=0)
+    t = Tkinter.Label(master, textvariable=self.current_state)
+    t.grid(row=2, column=0)
+    h = Tkinter.Label(master, text="Zombie amount")
+    h.grid(row=1, column=2)
+    z = Tkinter.Label(master, textvariable=self.zombie_amount)
+    z.grid(row=2, column=2)
 
     # child objects
     for obj in self.all_objects:
@@ -98,8 +130,6 @@ class MicroDirector:
           outline='green',
           fill='',
           width=2.0)
-
-
 
   def build_distance_field(self, target, blockers=[], expansion=0):
     """build a low-resolution distance map and return a function that uses
@@ -177,26 +207,37 @@ class MicroDirector:
     for obj in self.all_objects:
       obj.update(dt)
 
+    self.set_intensity()
+    #self.spawn_zombies()
+    self.check_health()
+    if self.spawn_health:
+      loc = self.give_health()
+      h = Medkit(self)
+      h.position = loc
+      self.register(h)
+      self.health_amount += 1
+
+
     # let brains handle collision reactions
     def handle_collision(a,b):
       if a.brain: a.brain.handle_event('collide',{'what': str(b.__class__.__name__), 'who': b})
       if b.brain: b.brain.handle_event('collide',{'what': str(a.__class__.__name__), 'who': a})
 
     # collide within species
-    for animal in [Slug,Mantis]:
+    for animal in [Player,Zombie]:
       self.eject_colliders(self.objects_by_class[animal],self.objects_by_class[animal],randomize=True)
 
     # collide across species
-    self.eject_colliders(self.objects_by_class[Mantis],self.objects_by_class[Slug],randomize=True,handler=handle_collision)
+    self.eject_colliders(self.objects_by_class[Zombie],self.objects_by_class[Player],randomize=True,handler=handle_collision)
 
     # collide animals with minerals without handlers
-    for animal in [Slug,Mantis]:
+    for animal in [Player,Zombie]:
       for mineral in [Obstacle]:
         self.eject_colliders(self.objects_by_class[animal],self.objects_by_class[mineral])
 
     # collide animals with minerals with handlers
-    for animal in [Slug,Mantis]:
-      for mineral in [Nest,Resource]:
+    for animal in [Player,Zombie]:
+      for mineral in [Nest,Resource, Medkit]:
         self.eject_colliders(self.objects_by_class[animal],self.objects_by_class[mineral],handler=handle_collision)
 
     # clean up objects with negative amount values
@@ -206,6 +247,21 @@ class MicroDirector:
       elif obj.amount > 1:
         obj.amount = 1
 
+  def check_health(self):
+    if self.player.amount < .30 and self.current_state.get() == "insane":
+      self.spawn_health = True
+
+  def give_health(self):
+    if self.health_amount <= self.max_health:
+      where = self.bbox(self.player)
+      if where == "q1":
+        return (20, 20)
+      elif where == "q2":
+        return (780, 20)
+      elif where == "q3":
+        return (20, 580)
+      else: #where == "q4"
+        return (780, 580)
 
   def eject_colliders(self, firsts, seconds, randomize=False, handler=None):
     
@@ -281,17 +337,18 @@ class MicroDirector:
       r.amount = random.random()
       self.register(r)
 
-    for i in range(specification.get('slugs',0)):
-      s = Slug(self)
-      s.position = random_position()
-      s.brain = brain_classes['slug'](s)
+    for i in range(specification.get('players',0)):
+      s = Player(self)
+      s.position = (20, 20)
+      s.brain = brain_classes['player'](s)
       s.set_alarm(0)
       self.register(s)
+      self.player = s
 
-    for i in range(specification.get('mantises',0)):
-      m = Mantis(self)
+    for i in range(specification.get('zombies',0)):
+      m = Zombie(self)
       m.position = random_position()
-      m.brain = brain_classes['mantis'](m)
+      m.brain = brain_classes['zombie'](m)
       m.set_alarm(0)
       self.register(m)
 
@@ -314,48 +371,86 @@ class MicroDirector:
 
     return min(filter(where,candidates),key=lambda obj: field(obj.position))
 
-
   def issue_selection_order(self, order):
     """apply user's order (a key or right-click location) to the selected
     objects"""
 
-    for obj in self.all_objects:
-      if obj.name == 'Slug':
-        if obj.brain:
-          obj.brain.handle_event('order',order)
+    for obj in self.selection:
+      if obj.brain:
+        obj.brain.handle_event('order',order)
 
-  def shoot(self):
-    for obj in self.all_objects:
-      if obj.name == 'Mantis':
-        xdiff = abs(obj.position[0] - self.sel_b[0])
-        ydiff = abs(obj.position[1] - self.sel_b[1])
+  def make_selection(self):
+    """build selection from the set of units contained in the sel_a-to-sel_b
+    bounding box"""
 
-        if (math.sqrt((math.pow(xdiff, 2)) + (math.pow(ydiff, 2)))) <= 20:
-          world.unregister(obj)
-          #print "Shot!"
-          #print "mantis x: ", obj.position[0]
-          #print "mantis y: ", obj.position[1]
-          #print "click x: ", self.sel_b[0]
-          #print "click y: ", self.sel_b[1]
-          #print "diff x: ", xdiff
-          #print "diff y: ", ydiff
-  #def make_selection(self):
-    #"""build selection from the set of units contained in the sel_a-to-sel_b
-    #bounding box"""
+    top_left = (min(self.sel_a[0], self.sel_b[0]), min(self.sel_a[1], self.sel_b[1]))
+    bottom_right = (max(self.sel_a[0], self.sel_b[0]), max(self.sel_a[1], self.sel_b[1]))
+    self.selection = {}
+    for obj in self.objects_by_class[Player]:
+      if      top_left[0] < obj.position[0] \
+          and top_left[1] < obj.position[1] \
+          and obj.position[0] < bottom_right[0] \
+          and obj.position[1] < bottom_right[1]:
+            self.selection[obj] = True
+    self.sel_a = None
+    self.sel_b = None
 
-    #top_left = (min(self.sel_a[0], self.sel_b[0]), min(self.sel_a[1], self.sel_b[1]))
-    #bottom_right = (max(self.sel_a[0], self.sel_b[0]), max(self.sel_a[1], self.sel_b[1]))
-    #for obj in self.objects_by_class[Slug]:
-      #if      top_left[0] < obj.position[0] \
-          #and top_left[1] < obj.position[1] \
-          #and obj.position[0] < bottom_right[0] \
-          #and obj.position[1] < bottom_right[1]:
-            #self.selection[obj] = True
-    #self.sel_a = None
-    #self.sel_b = None
+  def clear_selection(self):
+    self.selection = {}
 
-  #def clear_selection(self):
-    #self.selection = {}
+  def set_spawn_point(self, obj):
+    where = self.bbox(obj)
+    if where == "q1":
+      return (780, 580)
+    elif where == "q2":
+      return (20, 580)
+    elif where == "q3":
+      return (780, 20)
+    else: #where == "q4"
+      return (20, 20)
+
+
+
+  def spawn_zombies(self):
+
+    if self.current_state.get() == "calm" and self.zombie_amount.get() < 75:
+      m = Zombie(self)
+      m.position = self.set_spawn_point(self.player)
+      m.brain = final_brains.brain_classes['zombie'](m)
+      m.set_alarm(0)
+      self.register(m)
+      self.zombie_amount.set(self.zombie_amount.get() + 1)
+    elif self.current_state.get() == "rising" and self.zombie_amount.get() < 75:
+      '''self.zombie_amount.set(self.zombie_amount.get() + 1)
+      m = Zombie(self)
+      m.position = random_position()
+      m.brain = final_brains.brain_classes['zombie(m)
+      m.set_alarm(0)
+      self.register(m)'''
+      """for i in range(10): # jiggle the world around for a while so it looks pretty
+      self.eject_colliders(self.all_objects,self.all_objects,randomize=True)"""
+    
+  def set_state(self):
+    if self.current_state.get() == "calm" and self.intensity >= .25 and self.intensity < .75:
+      self.current_state.set("rising")
+      self.zombie_state = "attack"
+    elif self.current_state.get() == "rising" and self.intensity >= .75:
+      self.current_state.set("insane")
+    elif self.current_state.get() == "insane" and (self.intensity >=.80 and self.intensity <= self.maximum_threshold):
+      self.current_state.set("relaxing")
+    elif self.current_state.get() == "relaxing" and self.intensity <= .10:
+      self.current_state.set("calm")
+      self.zombie_state = "curious"
+
+  def get_state(self):
+    return self.current_state.get()
+
+  def set_intensity(self):
+    self.intensity = ((self.player.amount/10) * self.zombie_amount.get()) / 10
+    self.set_state()
+
+  def get_intensity(self):
+    return self.intensity
 
 class Controller(object):
   """base class for simulation-rate GameObject controllers"""
@@ -401,7 +496,7 @@ class GameObject(object):
     self.position = None
     self.controller = None
     self.brain = None
-    self.amount = 1 # a generic value that is visualized in the graphics
+    self.amount = 1.0 # a generic value that is visualized in the graphics
     self.timer_deadline = None
 
   def __repr__(self):
@@ -409,6 +504,7 @@ class GameObject(object):
 
   def draw(self, canvas):
     """draw a generic object to the screen using it's position, radius, color, and amount"""
+    self.borders()
     if self.position:
       sa = math.sqrt(self.amount)
       canvas.create_oval(
@@ -426,6 +522,26 @@ class GameObject(object):
           outline='black',
           fill='')
 
+  def borders(self):
+    x, y = self.position 
+    world = self.world
+    sa = math.sqrt(self.amount)
+    if x < -self.radius*sa:
+      x = world.width + self.radius*sa
+
+    if y < -self.radius*sa:
+      y = world.height + self.radius*sa
+
+    if x > world.width + self.radius*sa:
+      x = -self.radius*sa
+
+    if y > world.height + self.radius*sa:
+      y = -self.radius*sa
+
+    self.position = (x, y)
+
+  def get_amount(self):
+    return self.amount
 
   def update(self, dt):
     """handle simulation-rate updates by delegating to controller"""
@@ -457,6 +573,8 @@ class GameObject(object):
 
   def destroy(self):
     self.world.unregister(self)
+    if self.name == "Zombie":
+      self.world.zombie_amount.set(self.world.zombie_amount.get() - 1)
 
   def set_alarm(self, dt):
     when = self.world.time + dt
@@ -464,17 +582,19 @@ class GameObject(object):
       self.timer_deadline = when
 
 class Nest(GameObject):
-  """home-base for Team Slug"""
+  """home-base for Team Player"""
   def __init__(self, world):
     super(Nest, self).__init__(world)
+    self.name = "Nest"
     self.radius = 100
     self.amount = 0.5
     self.color = 'orange'
-    
+  
 class Obstacle(GameObject):
   """an impassable rocky obstacle"""
   def __init__(self, world):
     super(Obstacle, self).__init__(world)
+    self.name = "Obstacle"
     self.radius = 25
     self.color = 'gray'
 
@@ -482,33 +602,48 @@ class Resource(GameObject):
   """a tasty clump of resources to be consumed"""
   def __init__(self, world):
     super(Resource, self).__init__(world)
+    self.name = "Resource"
     self.radius = 25
     self.color = 'cyan'
 
-class Slug(GameObject):
-  """fearless, inhuman, slimy protagonists"""
+class Player(GameObject):
+  """fearless, human, player"""
   def __init__(self, world):
-    super(Slug, self).__init__(world)
+    super(Player, self).__init__(world)
+    self.name = "Player"
     self.goal = None
     self.time_to_next_decision = 0
-    self.speed = 100
-    self.radius = 10
-    self.color = 'blue'  
-    self.name = "Slug"  
-
-class Mantis(GameObject):
-  """indigenous lifeforms, mostly harmless"""
-  
-  def __init__(self, world):
-    super(Mantis, self).__init__(world)
-    self.time_to_next_decision = 0
-    self.target = None
-    self.speed = 50 
+    self.speed = 200
     self.radius = 20
-    self.color = 'red'
-    self.name = "Mantis"
+    self.color = 'blue'    
 
-import final_brains
+class Zombie(GameObject):
+  """zombies eat brains!!!""" 
+  def __init__(self, world):
+    super(Zombie, self).__init__(world)
+    self.time_to_next_decision = 0
+    self.name = "Zombie"
+    self.target = self.world.player
+    self.speed = 200
+    self.radius = 10
+    self.color = 'red'
+
+class Medkit(GameObject):
+  """Medkit"""
+  def __init__(self, world):
+    super(Medkit, self).__init__(world)
+    self.name = "Medkit"
+    self.radius = 10
+    self.color = 'green'
+
+class Ammo(GameObject):
+  """Ammo supply"""
+  def __init__(self, world):
+    super(Ammo, self).__init__(world)
+    self.name = "Ammo"
+    self.speed = 0
+    self.radius = 10
+    self.color = 'black'
 
 CANVAS_WIDTH = 800
 CANVAS_HEIGHT = 600
@@ -520,7 +655,7 @@ world = MicroDirector(CANVAS_WIDTH, CANVAS_WIDTH)
 world.populate(final_brains.world_specification, final_brains.brain_classes)
 
 canvas = Tkinter.Canvas(master, width=CANVAS_WIDTH, height=CANVAS_HEIGHT) 
-canvas.grid(row=0, column=0)
+canvas.grid(row=0, column=0, columnspan=3)
 
 SIMULATION_TICK_DELAY_MS = 10.0
 GRAPHICS_TICK_DELAY_MS = 30.0
@@ -537,23 +672,23 @@ master.after_idle(global_simulation_tick)
 master.after_idle(global_graphics_tick)
 
 def left_button_down(event):
-  world.sel_b = (event.x, event.y)
-  world.shoot()
+  world.sel_a = (event.x, event.y)
+  if world.selection:
+    world.clear_selection()
 
+def left_button_double(event):
+  world.sel_a = (0,0)
+  world.sel_b = (world.width, world.height)
+  world.make_selection()
 
-#def left_button_double(event):
-  #world.sel_a = (0,0)
-  #world.sel_b = (world.width, world.height)
-  #world.make_selection()
+def left_button_move(event):
+  if world.sel_a:
+    world.sel_b = (event.x, event.y)
 
-#def left_button_move(event):
-  #if world.sel_a:
-    #world.sel_b = (event.x, event.y)
-
-#def left_button_up(event):
-  #if world.sel_a:
-    #world.sel_b = (event.x, event.y)
-    #world.make_selection()
+def left_button_up(event):
+  if world.sel_a:
+    world.sel_b = (event.x, event.y)
+    world.make_selection()
 
 def right_button_down(event):
   world.issue_selection_order((event.x, event.y))
@@ -562,9 +697,9 @@ def key_down(event):
   world.issue_selection_order(event.char)
 
 master.bind('<ButtonPress-1>', left_button_down)
-#master.bind('<Double-Button-1>', left_button_double)
-#master.bind('<B1-Motion>', left_button_move)
-#master.bind('<ButtonRelease-1>', left_button_up)
+master.bind('<Double-Button-1>', left_button_double)
+master.bind('<B1-Motion>', left_button_move)
+master.bind('<ButtonRelease-1>', left_button_up)
 master.bind('<ButtonPress-2>', right_button_down)
 master.bind('<ButtonPress-3>', right_button_down)
 master.bind('<Key>', key_down)

@@ -2,50 +2,37 @@
 import random
 
 # EXAMPLE STATE MACHINE
-class MantisBrain:
+class ZombieBrain:
 
   def __init__(self, body):
     self.body = body
-    self.state = 'idle'
-    self.target = None
+    self.state = self.body.world.zombie_state
+    self.target = None    
 
   def handle_event(self, message, details):
-
-    if self.state is 'idle':
-
+    self.state = self.body.world.zombie_state
+    if self.state is "curious":
       if message == 'timer':
         # go to a random point, wake up sometime in the next 10 seconds
         world = self.body.world
         x, y = random.random()*world.width, random.random()*world.height
         self.body.go_to((x,y))
-        self.body.set_alarm(1)
-
-      elif message == 'collide' and details['what'] == 'Slug':
+        self.body.set_alarm(random.random()*10)
+      elif message == 'collide' and details['what'] == 'Player':
         # a slug bumped into us; get curious
-        self.state = 'curious'
-        self.body.set_alarm(1) # think about this for a sec
-        self.body.stop()
+        self.state = "attack"
+        #self.body.set_alarm(1) # think about this for a sec
         self.target = details['who']
 
-    elif self.state == 'curious':
-
-      if message == 'timer':
-        # chase down that slug who bumped into us
-        if self.target:
-          if random.random() < 0.5:
-            self.body.stop()
-            self.state = 'idle'
-          else:
-            self.body.follow(self.target)
-          self.body.set_alarm(1)
-      elif message == 'collide' and details['what'] == 'Slug':
+    elif self.state is "attack":
+      self.body.follow(self.body.world.player)
+      self.body.set_alarm(1)
+      if message == 'collide' and details['what'] == 'Player':
         # we meet again!
-        slug = details['who']
-        slug.amount -= 0.01 # take a tiny little bite 
-
-
+        player = details['who']
+        player.amount -= 0.01 # take a tiny little bite
     
-class SlugBrain:
+class PlayerBrain:
 
   def __init__(self, body):
     self.body = body
@@ -57,91 +44,90 @@ class SlugBrain:
     # TODO: IMPLEMENT THIS METHOD
     #  (Use helper methods and classes to keep your code organized where
     #  approprioate.)
+
     if message == 'order' and isinstance(details, tuple):
-        x, y = details
-        self.body.go_to((x,y))
+      self.state = 'moving'
+      x, y = details
+      self.body.go_to((x, y))
+    elif message == 'order' and isinstance(details, basestring):
+      if details == 'a':
+        self.state = 'attack'
+      elif details == 'i':
         self.state = 'idle'
-        print "moving to (%d, %d)" %(x,y)
-    elif message == 'order' and type(details) == str:
-        command(self, details)
-        print "This slug is", self.state
-
-    #if self.body.amount < .5:
-        #self.state = 'fleeing'
-        #nearest_nest = self.body.find_nearest('Nest')
-        #self.body.go_to(nearest_nest)
-        #print "This slug is fleeing"
-        #if message == 'collide' and details['what'] == 'Nest':
-            #self.body.amount = 1
-            #self.state = 'idle'
-
-    #elif self.state is 'idle':
-        #self.body.stop
-
-    #elif self.state is 'attacking':
-        #self.body.set_alarm(1)
-        #if message == 'timer':
-            #if self.target is None:
-                #print "   Searching for mantis"
-                #try: 
-                    #nearest_mantis = self.body.find_nearest('Mantis')
-                    #self.body.follow(nearest_mantis)
-                    #self.target = nearest_mantis
-                #except: 
-                    #print "all mantises are dead!"
-        #elif message == 'collide' and details['what'] == 'Mantis':
-            #mantis = details['who']
-            #mantis.amount -= 0.05
-            #if mantis.amount < 0:
-                #self.target = None
-                #self.body.set_alarm(1)
-
-    #elif self.state is 'building':
-        #nearest_nest = self.body.find_nearest('Nest')
-        #self.body.go_to(nearest_nest)
-        #if message == 'collide' and details['what'] == 'Nest':
-            #nest = details['who']
-            #if nest.amount is not 1:
-                #nest.amount += 0.01
-
-    #elif self.state is 'harvesting':
-        #if self.has_resource is True:
-            #nearest_nest = self.body.find_nearest('Nest')
-            #self.body.go_to(nearest_nest)
-            #if message == 'collide' and details['what'] == 'Nest':
-                #self.has_resource = False
-        #else:
-            #nearest_resource = self.body.find_nearest('Resource')
-            #self.body.go_to(nearest_resource)
-            #if message == 'collide' and details['what'] == 'Resource':
-                #resource = details['who']
-                #resource.amount -= 0.25
-                #self.has_resource = True
-
-    pass
-
-def command(self, details):
-    if details == 'i':
+      elif details == 'h':
+        self.state = 'harvest'
+      elif details == 'b':
+        self.state = 'build'
+      elif details == 'q':
         self.state = 'idle'
-    elif details == 'a':
-        self.state = 'attacking'
-    elif details == 'h':
-        self.state = 'harvesting'
-    elif details == 'b':
-        self.state = 'building'
+        self.body.amount -= .10
+      elif details == 'w':
+        if self.body.amount > 1.0:
+          self.body.amount = 1.0  
+        self.body.amount += .10
+        self.state = 'idle'
+
+    if message == 'collide' and details['what'] == 'Medkit':
+      self.body.amount = 1.0
+
+    if self.state == 'idle':
+      self.body.stop()
+    elif self.state == 'attack':
+      if message == 'timer':
+        try:
+          zombie = self.body.find_nearest('Zombie')
+          self.body.follow(zombie)
+        except:
+          self.state = 'idle'
+          print "No more zombies"
+      elif message == 'collide' and details['what'] == 'Zombie':
+        zombie = details['who']
+        zombie.amount -= 0.05
+    elif self.state == 'build':
+      nest = self.body.find_nearest('Nest')
+      if message == 'timer':
+        nest = self.body.find_nearest('Nest')
+        self.body.go_to(nest)
+      elif message == 'collide' and details['what'] == 'Nest':
+        nest = details['who']
+        nest.amount += 0.05
+      elif nest.amount >= 1:
+        self.state = 'idle'
+    elif self.state == 'harvest':
+      if self.has_resource == True:
+        nest = self.body.find_nearest('Nest')
+        if message == 'timer':
+          nest = self.body.find_nearest('Nest')
+          self.body.go_to(nest)
+        elif message == 'collide' and details['what'] == 'Nest':
+          self.has_resource = False
+      elif self.has_resource == False:
+        try:
+          resource = self.body.find_nearest('Resource')
+          if message == 'timer':
+            resource = self.body.find_nearest('Resource')
+            self.body.go_to(resource)
+          elif message == 'collide' and details['what'] == 'Resource':
+            self.has_resource = True
+            resource = details['who']
+            resource.amount -= 0.25
+        except:
+          self.state = 'idle'
+          print "No more resources."
+    self.body.set_alarm(1)
 
 
 
 world_specification = {
-  #'worldgen_seed': 0, # comment-out to randomize
+  #'worldgen_seed': 13, # comment-out to randomize
   'nests': 0,
   'obstacles': 0,
   'resources': 0,
-  'slugs': 1,
-  'mantises': 5,
+  'players': 1,
+  'zombies': 1,
 }
 
 brain_classes = {
-  'mantis': MantisBrain,
-  'slug': SlugBrain,
+  'zombie': ZombieBrain,
+  'player': PlayerBrain,
 }
