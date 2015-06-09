@@ -38,6 +38,8 @@ class MicroDirector:
     self.zombie_amount = Tkinter.IntVar()
     self.zombie_amount.set(0)
     self.zombie_state = "curious"
+    self.max_zombies = 45
+    self.player_alive = True
 
   def callback(self):
     if not self.ai_on_off.get():
@@ -201,6 +203,18 @@ class MicroDirector:
   def update(self, dt):
     """update the world and all registered GameObject instances"""
 
+    def give_health():
+      if self.health_amount <= self.max_health:
+        where = self.bbox(self.player)
+        if where == "q1":
+          return (20, 20)
+        elif where == "q2":
+          return (780, 20)
+        elif where == "q3":
+          return (20, 580)
+        else: #where == "q4"
+          return (780, 580)
+
     self.time += dt
 
     # update all objects
@@ -208,13 +222,14 @@ class MicroDirector:
       obj.update(dt)
 
     self.set_intensity()
-    #self.spawn_zombies()
+    self.spawn_zombies()
     self.check_health()
-    if self.spawn_health:
-      loc = self.give_health()
+    if self.spawn_health and self.health_amount < self.max_health:
       h = Medkit(self)
-      h.position = loc
+      h.position = give_health()
       self.register(h)
+      print h, h.position
+      self.spawn_health = False
       self.health_amount += 1
 
 
@@ -237,7 +252,7 @@ class MicroDirector:
 
     # collide animals with minerals with handlers
     for animal in [Player,Zombie]:
-      for mineral in [Nest,Resource, Medkit]:
+      for mineral in [Nest,Resource,Medkit]:
         self.eject_colliders(self.objects_by_class[animal],self.objects_by_class[mineral],handler=handle_collision)
 
     # clean up objects with negative amount values
@@ -245,23 +260,11 @@ class MicroDirector:
       if obj.amount < 0:
         obj.destroy()
       elif obj.amount > 1:
-        obj.amount = 1
+        obj.amount = 1.0
 
   def check_health(self):
     if self.player.amount < .30 and self.current_state.get() == "insane":
       self.spawn_health = True
-
-  def give_health(self):
-    if self.health_amount <= self.max_health:
-      where = self.bbox(self.player)
-      if where == "q1":
-        return (20, 20)
-      elif where == "q2":
-        return (780, 20)
-      elif where == "q3":
-        return (20, 580)
-      else: #where == "q4"
-        return (780, 580)
 
   def eject_colliders(self, firsts, seconds, randomize=False, handler=None):
     
@@ -337,20 +340,25 @@ class MicroDirector:
       r.amount = random.random()
       self.register(r)
 
+    for i in range(specification.get('medkit',0)):
+      m = Medkit(self)
+      m.position = random_position()
+      self.register(m)
+
     for i in range(specification.get('players',0)):
-      s = Player(self)
-      s.position = (20, 20)
-      s.brain = brain_classes['player'](s)
-      s.set_alarm(0)
-      self.register(s)
-      self.player = s
+      p = Player(self)
+      p.position = (200, 150)
+      p.brain = brain_classes['player'](p)
+      p.set_alarm(0)
+      self.register(p)
+      self.player = p
 
     for i in range(specification.get('zombies',0)):
-      m = Zombie(self)
-      m.position = random_position()
-      m.brain = brain_classes['zombie'](m)
-      m.set_alarm(0)
-      self.register(m)
+      z = Zombie(self)
+      z.position = random_position()
+      z.brain = brain_classes['zombie'](z)
+      z.set_alarm(0)
+      self.register(z)
 
     for i in range(10): # jiggle the world around for a while so it looks pretty
       self.eject_colliders(self.all_objects,self.all_objects,randomize=True)
@@ -374,60 +382,71 @@ class MicroDirector:
   def issue_selection_order(self, order):
     """apply user's order (a key or right-click location) to the selected
     objects"""
-    for obj in self.all_objects:
-      if obj.name == 'Player':
-        if obj.brain:
-          obj.brain.handle_event('order',order)
-   
+
+    for obj in self.selection:
+      if obj.brain:
+        obj.brain.handle_event('order',order)
+
   def shoot(self):
     for obj in self.all_objects:
-      if obj.name == 'Mantis':
+      if obj.name == 'Zombie':
         xdiff = abs(obj.position[0] - self.sel_b[0])
         ydiff = abs(obj.position[1] - self.sel_b[1])
         if (math.sqrt((math.pow(xdiff, 2)) + (math.pow(ydiff, 2)))) <= 20:
-          world.unregister(obj)
+          obj.destroy()
 
-  def set_spawn_point(self, obj):
-    where = self.bbox(obj)
-    if where == "q1":
-      return (780, 580)
-    elif where == "q2":
-      return (20, 580)
-    elif where == "q3":
-      return (780, 20)
-    else: #where == "q4"
-      return (20, 20)
+  """def make_selection(self):
+    \"""build selection from the set of units contained in the sel_a-to-sel_b
+    bounding box\"""
 
+    top_left = (min(self.sel_a[0], self.sel_b[0]), min(self.sel_a[1], self.sel_b[1]))
+    bottom_right = (max(self.sel_a[0], self.sel_b[0]), max(self.sel_a[1], self.sel_b[1]))
+    self.selection = {}
+    for obj in self.objects_by_class[Player]:
+      if      top_left[0] < obj.position[0] \
+          and top_left[1] < obj.position[1] \
+          and obj.position[0] < bottom_right[0] \
+          and obj.position[1] < bottom_right[1]:
+            self.selection[obj] = True
+    self.sel_a = None
+    self.sel_b = None
 
+  def clear_selection(self):
+    self.selection = {}"""
 
   def spawn_zombies(self):
 
-    if self.current_state.get() == "calm" and self.zombie_amount.get() < 75:
+    def set_spawn_point(obj):
+      where = self.bbox(obj)
+      if where == "q1":
+        return (780, 580)
+      elif where == "q2":
+        return (20, 580)
+      elif where == "q3":
+        return (780, 20)
+      else: #where == "q4"
+        return (20, 20)
+
+    if (self.current_state.get() == "calm" or self.current_state.get() == "rising") and self.zombie_amount.get() < self.max_zombies:
       m = Zombie(self)
-      m.position = self.set_spawn_point(self.player)
+      m.position = set_spawn_point(self.player)
       m.brain = final_brains.brain_classes['zombie'](m)
       m.set_alarm(0)
       self.register(m)
       self.zombie_amount.set(self.zombie_amount.get() + 1)
-    elif self.current_state.get() == "rising" and self.zombie_amount.get() < 75:
-      '''self.zombie_amount.set(self.zombie_amount.get() + 1)
-      m = Zombie(self)
-      m.position = random_position()
-      m.brain = final_brains.brain_classes['zombie(m)
-      m.set_alarm(0)
-      self.register(m)'''
+
       """for i in range(10): # jiggle the world around for a while so it looks pretty
       self.eject_colliders(self.all_objects,self.all_objects,randomize=True)"""
     
   def set_state(self):
-    if self.current_state.get() == "calm" and self.intensity >= .25 and self.intensity < .75:
+    if self.current_state.get() == "calm" and self.zombie_amount.get() >= 10:
       self.current_state.set("rising")
       self.zombie_state = "attack"
-    elif self.current_state.get() == "rising" and self.intensity >= .75:
+    elif self.current_state.get() == "rising" and self.zombie_amount.get() == self.max_zombies:
       self.current_state.set("insane")
-    elif self.current_state.get() == "insane" and (self.intensity >=.80 and self.intensity <= self.maximum_threshold):
+    elif self.current_state.get() == "insane" and self.zombie_amount.get() <= self.max_zombies/2:
       self.current_state.set("relaxing")
-    elif self.current_state.get() == "relaxing" and self.intensity <= .10:
+    elif self.current_state.get() == "relaxing" and self.zombie_amount.get() <= 10:
       self.current_state.set("calm")
       self.zombie_state = "curious"
 
@@ -564,6 +583,10 @@ class GameObject(object):
     self.world.unregister(self)
     if self.name == "Zombie":
       self.world.zombie_amount.set(self.world.zombie_amount.get() - 1)
+    if self.name == "Medkit":
+      self.world.health_amount -= 1
+    if self.name == "Player":
+      self.world.player_alive = False
 
   def set_alarm(self, dt):
     when = self.world.time + dt
@@ -622,6 +645,7 @@ class Medkit(GameObject):
   def __init__(self, world):
     super(Medkit, self).__init__(world)
     self.name = "Medkit"
+    self.amount = 1.0
     self.radius = 10
     self.color = 'green'
 
