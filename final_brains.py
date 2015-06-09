@@ -134,7 +134,7 @@ def command(self, details):
 
 world_specification = {
   #'worldgen_seed': 0, # comment-out to randomize
-  'nests': 1,
+  'nests': 0,
   'obstacles': 0,
   'resources': 0,
   'slugs': 1,
