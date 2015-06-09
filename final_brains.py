@@ -11,6 +11,8 @@ class ZombieBrain:
 
   def handle_event(self, message, details):
     self.state = self.body.world.zombie_state
+    if not self.body.world.player_alive:
+      self.state = "curious"
     if self.state is "curious":
       if message == 'timer':
         # go to a random point, wake up sometime in the next 10 seconds
@@ -58,16 +60,18 @@ class PlayerBrain:
         self.state = 'harvest'
       elif details == 'b':
         self.state = 'build'
-      elif details == 'q':
+      elif details == 'p':
         self.state = 'idle'
         self.body.amount -= .10
-      elif details == 'w':
+      elif details == 'o':
         if self.body.amount > 1.0:
           self.body.amount = 1.0  
         self.body.amount += .10
         self.state = 'idle'
 
     if message == 'collide' and details['what'] == 'Medkit':
+      medkit = details['who']
+      medkit.destroy()
       self.body.amount = 1.0
 
     if self.state == 'idle':
@@ -124,7 +128,8 @@ world_specification = {
   'obstacles': 0,
   'resources': 0,
   'players': 1,
-  'zombies': 1,
+  'zombies': 0,
+  'medkit': 0,
 }
 
 brain_classes = {
