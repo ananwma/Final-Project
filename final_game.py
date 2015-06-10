@@ -14,6 +14,7 @@ class MicroDirector:
     self.height = height
     self.all_objects = []
     self.player = []
+    self.zombies = []
     self.objects_by_class = collections.defaultdict(list)
     self.sel_a = None
     self.sel_b = None
@@ -22,23 +23,24 @@ class MicroDirector:
     self.ai_on_off = Tkinter.IntVar()
     self.change_text = Tkinter.StringVar()
     b = Tkinter.Button(master, textvariable=self.change_text, command=self.callback)
-    b.grid(row=1, column=1)
-    self.change_text.set("Micro-Director is off")
-    self.ai_on_off.set(0)
-    self.intensity = 0.0
-    self.minimum_threshold = 0.0
-    self.maximum_threshold = 1.0
+    b.grid(row=1, column=0)
+    self.change_text.set("Micro-Director is on")
+    self.ai_on_off.set(1)
     self.spawn_ammo = False
     self.spawn_health = False
     self.max_health = 1
     self.health_amount = 0
-    self.max_ammo = 2
+    self.max_ammo = 1
+    self.ammo_amount = 0
     self.current_state = Tkinter.StringVar()
-    self.current_state.set("insane")
+    self.current_state.set("calm")
     self.zombie_amount = Tkinter.IntVar()
     self.zombie_amount.set(0)
     self.zombie_state = "curious"
+    self.max_zombies = 45
     self.player_alive = True
+    self.ammo = Tkinter.IntVar()
+    self.ammo.set(31)
 
   def callback(self):
     if not self.ai_on_off.get():
@@ -93,15 +95,19 @@ class MicroDirector:
     canvas.delete(Tkinter.ALL)
 
     # backdrop
-    canvas.create_rectangle(0, 0, self.width, self.height, fill='grey', outline='')
+    """canvas.create_rectangle(0, 0, self.width, self.height, fill='grey', outline='')
     s = Tkinter.Label(master, text="Intensity")
     s.grid(row=1, column=0)
     t = Tkinter.Label(master, textvariable=self.current_state)
     t.grid(row=2, column=0)
     h = Tkinter.Label(master, text="Zombie amount")
-    h.grid(row=1, column=2)
+    h.grid(row=1, column=1)
     z = Tkinter.Label(master, textvariable=self.zombie_amount)
-    z.grid(row=2, column=2)
+    z.grid(row=2, column=1)
+    at = Tkinter.Label(master, text="Ammo count")
+    at.grid(row=1, column=2)
+    a = Tkinter.Label(master, textvariable=self.ammo)
+    a.grid(row=2, column=2)"""
 
     # child objects
     for obj in self.all_objects:
@@ -202,22 +208,72 @@ class MicroDirector:
   def update(self, dt):
     """update the world and all registered GameObject instances"""
 
+    def give_health():
+      if self.ai_on_off.get():
+        if self.health_amount <= self.max_health:
+          where = self.bbox(self.player)
+          if where == "q1":
+            return (20, 20)
+          elif where == "q2":
+            return (780, 20)
+          elif where == "q3":
+            return (20, 580)
+          else: #where == "q4"
+            return (780, 580)
+      else:
+        return (random.random()*self.width, random.random()*self.height)
+
+    def give_ammo():
+      if self.ai_on_off.get():
+        if self.ammo_amount <= self.max_ammo:
+          where = self.bbox(self.player)
+          if where == "q1":
+            return (45, 45)
+          elif where == "q2":
+            return (765, 35
+              )
+          elif where == "q3":
+            return (35, 595)
+          else: #where == "q4"
+            return (765, 565)
+      else:
+        return (random.random()*self.width, random.random()*self.height)
+
+    self.check_state()
+    self.spawn_zombies()
+    self.check_health()
+    self.check_ammo()
+
+    if self.ai_on_off.get():
+      if self.spawn_health and self.health_amount < self.max_health:
+        h = Medkit(self)
+        h.position = give_health()
+        self.register(h)
+        self.spawn_health = False
+        self.health_amount += 1
+      if self.spawn_ammo and self.ammo_amount < self.max_ammo:
+        a = Ammo(self)
+        a.position = give_ammo()
+        self.register(a)
+        self.spawn_ammo = False
+        self.ammo_amount += 1
+    else:
+      if self.spawn_health and self.health_amount < 5:
+        h = Medkit(self)
+        h.position = give_health()
+        self.register(h)
+        self.health_amount += 1
+      if self.spawn_ammo and self.ammo_amount < 5:
+        a = Ammo(self)
+        a.position = give_ammo()
+        self.register(a)
+        self.ammo_amount += 1
+
     self.time += dt
 
     # update all objects
     for obj in self.all_objects:
       obj.update(dt)
-
-    self.set_intensity()
-    #self.spawn_zombies()
-    self.check_health()
-    if self.spawn_health:
-      loc = self.give_health()
-      h = Medkit(self)
-      h.position = loc
-      self.register(h)
-      self.health_amount += 1
-
 
     # let brains handle collision reactions
     def handle_collision(a,b):
@@ -238,7 +294,7 @@ class MicroDirector:
 
     # collide animals with minerals with handlers
     for animal in [Player,Zombie]:
-      for mineral in [Nest,Resource, Medkit]:
+      for mineral in [Nest,Resource,Medkit,Ammo]:
         self.eject_colliders(self.objects_by_class[animal],self.objects_by_class[mineral],handler=handle_collision)
 
     # clean up objects with negative amount values
@@ -246,23 +302,15 @@ class MicroDirector:
       if obj.amount < 0:
         obj.destroy()
       elif obj.amount > 1:
-        obj.amount = 1
+        obj.amount = 1.0
 
   def check_health(self):
     if self.player.amount < .30 and self.current_state.get() == "insane":
       self.spawn_health = True
 
-  def give_health(self):
-    if self.health_amount <= self.max_health:
-      where = self.bbox(self.player)
-      if where == "q1":
-        return (20, 20)
-      elif where == "q2":
-        return (780, 20)
-      elif where == "q3":
-        return (20, 580)
-      else: #where == "q4"
-        return (780, 580)
+  def check_ammo(self):
+    if self.ammo.get() <= 5:
+      self.spawn_ammo = True
 
   def eject_colliders(self, firsts, seconds, randomize=False, handler=None):
     
@@ -338,20 +386,30 @@ class MicroDirector:
       r.amount = random.random()
       self.register(r)
 
+    for i in range(specification.get('medkit',0)):
+      m = Medkit(self)
+      m.position = random_position()
+      self.register(m)
+
+    for i in range(specification.get('ammo',0)):
+      a = Ammo(self)
+      a.position = random_position()
+      self.register(a)
+
     for i in range(specification.get('players',0)):
-      s = Player(self)
-      s.position = (20, 20)
-      s.brain = brain_classes['player'](s)
-      s.set_alarm(0)
-      self.register(s)
-      self.player = s
+      p = Player(self)
+      p.position = (200, 150)
+      p.brain = brain_classes['player'](p)
+      p.set_alarm(0)
+      self.register(p)
+      self.player = p
 
     for i in range(specification.get('zombies',0)):
-      m = Zombie(self)
-      m.position = random_position()
-      m.brain = brain_classes['zombie'](m)
-      m.set_alarm(0)
-      self.register(m)
+      z = Zombie(self)
+      z.position = random_position()
+      z.brain = brain_classes['zombie'](z)
+      z.set_alarm(0)
+      self.register(z)
 
     for i in range(10): # jiggle the world around for a while so it looks pretty
       self.eject_colliders(self.all_objects,self.all_objects,randomize=True)
@@ -375,72 +433,81 @@ class MicroDirector:
   def issue_selection_order(self, order):
     """apply user's order (a key or right-click location) to the selected
     objects"""
+
     for obj in self.all_objects:
       if obj.name == 'Player':
         if obj.brain:
           obj.brain.handle_event('order',order)
-   
+
   def shoot(self):
     for obj in self.all_objects:
       if obj.name == 'Zombie':
         xdiff = abs(obj.position[0] - self.sel_b[0])
         ydiff = abs(obj.position[1] - self.sel_b[1])
-        if (math.sqrt((math.pow(xdiff, 2)) + (math.pow(ydiff, 2)))) <= 20:
-          world.unregister(obj)
+        if (math.sqrt((math.pow(xdiff, 2)) + (math.pow(ydiff, 2)))) <= 10:
+          obj.destroy()
 
-  def set_spawn_point(self, obj):
-    where = self.bbox(obj)
-    if where == "q1":
-      return (780, 580)
-    elif where == "q2":
-      return (20, 580)
-    elif where == "q3":
-      return (780, 20)
-    else: #where == "q4"
-      return (20, 20)
+  def make_selection(self):
+    """build selection from the set of units contained in the sel_a-to-sel_b
+    bounding box"""
 
+    top_left = (min(self.sel_a[0], self.sel_b[0]), min(self.sel_a[1], self.sel_b[1]))
+    bottom_right = (max(self.sel_a[0], self.sel_b[0]), max(self.sel_a[1], self.sel_b[1]))
+    self.selection = {}
+    for obj in self.objects_by_class[Player]:
+      if      top_left[0] < obj.position[0] \
+          and top_left[1] < obj.position[1] \
+          and obj.position[0] < bottom_right[0] \
+          and obj.position[1] < bottom_right[1]:
+            self.selection[obj] = True
+    self.sel_a = None
+    self.sel_b = None
 
+  def clear_selection(self):
+    self.selection = {}
 
   def spawn_zombies(self):
 
-    if self.current_state.get() == "calm" and self.zombie_amount.get() < 75:
+    def set_spawn_point(obj):
+      if self.ai_on_off.get():
+        where = self.bbox(obj)
+        if where == "q1":
+          return (780, 580)
+        elif where == "q2":
+          return (20, 580)
+        elif where == "q3":
+          return (780, 20)
+        else: #where == "q4"
+          return (20, 20)
+      else:
+        return (random.random()*self.width, random.random()*self.height)
+
+    if (self.current_state.get() == "calm" or self.current_state.get() == "rising") and self.zombie_amount.get() < self.max_zombies:
       m = Zombie(self)
-      m.position = self.set_spawn_point(self.player)
+      m.position = set_spawn_point(self.player)
       m.brain = final_brains.brain_classes['zombie'](m)
       m.set_alarm(0)
       self.register(m)
       self.zombie_amount.set(self.zombie_amount.get() + 1)
-    elif self.current_state.get() == "rising" and self.zombie_amount.get() < 75:
-      '''self.zombie_amount.set(self.zombie_amount.get() + 1)
-      m = Zombie(self)
-      m.position = random_position()
-      m.brain = final_brains.brain_classes['zombie(m)
-      m.set_alarm(0)
-      self.register(m)'''
-      """for i in range(10): # jiggle the world around for a while so it looks pretty
-      self.eject_colliders(self.all_objects,self.all_objects,randomize=True)"""
+
+    for i in range(10): # jiggle the world around for a while so it looks pretty
+      self.eject_colliders(self.all_objects,self.all_objects,randomize=True)
     
-  def set_state(self):
-    if self.current_state.get() == "calm" and self.intensity >= .25 and self.intensity < .75:
-      self.current_state.set("rising")
-      self.zombie_state = "attack"
-    elif self.current_state.get() == "rising" and self.intensity >= .75:
-      self.current_state.set("insane")
-    elif self.current_state.get() == "insane" and (self.intensity >=.80 and self.intensity <= self.maximum_threshold):
-      self.current_state.set("relaxing")
-    elif self.current_state.get() == "relaxing" and self.intensity <= .10:
+  def check_state(self):
+    if self.ai_on_off.get():
+      if self.current_state.get() == "calm" and self.zombie_amount.get() >= 10:
+        self.current_state.set("rising")
+        self.zombie_state = "attack"
+      elif self.current_state.get() == "rising" and self.zombie_amount.get() == self.max_zombies:
+        self.current_state.set("insane")
+      elif self.current_state.get() == "insane" and self.zombie_amount.get() <= self.max_zombies/3:
+        self.current_state.set("relaxing")
+      elif self.current_state.get() == "relaxing" and self.zombie_amount.get() == 0:
+        self.current_state.set("calm")
+        self.zombie_state = "curious"
+    else:
       self.current_state.set("calm")
       self.zombie_state = "curious"
-
-  def get_state(self):
-    return self.current_state.get()
-
-  def set_intensity(self):
-    self.intensity = ((self.player.amount/10) * self.zombie_amount.get()) / 10
-    self.set_state()
-
-  def get_intensity(self):
-    return self.intensity
 
 class Controller(object):
   """base class for simulation-rate GameObject controllers"""
@@ -565,6 +632,12 @@ class GameObject(object):
     self.world.unregister(self)
     if self.name == "Zombie":
       self.world.zombie_amount.set(self.world.zombie_amount.get() - 1)
+    if self.name == "Medkit":
+      self.world.health_amount -= 1
+    if self.name == "Player":
+      self.world.player_alive = False
+    if self.name == "Ammo":
+      self.world.ammo_amount -= 1
 
   def set_alarm(self, dt):
     when = self.world.time + dt
@@ -605,7 +678,8 @@ class Player(GameObject):
     self.time_to_next_decision = 0
     self.speed = 200
     self.radius = 20
-    self.color = 'blue'    
+    self.color = 'blue'
+    self.ammo = world.ammo.get()
 
 class Zombie(GameObject):
   """zombies eat brains!!!""" 
@@ -614,7 +688,7 @@ class Zombie(GameObject):
     self.time_to_next_decision = 0
     self.name = "Zombie"
     self.target = self.world.player
-    self.speed = 200
+    self.speed = 100
     self.radius = 10
     self.color = 'red'
 
@@ -623,6 +697,7 @@ class Medkit(GameObject):
   def __init__(self, world):
     super(Medkit, self).__init__(world)
     self.name = "Medkit"
+    self.amount = 1.0
     self.radius = 10
     self.color = 'green'
 
@@ -631,7 +706,6 @@ class Ammo(GameObject):
   def __init__(self, world):
     super(Ammo, self).__init__(world)
     self.name = "Ammo"
-    self.speed = 0
     self.radius = 10
     self.color = 'black'
 
@@ -645,10 +719,10 @@ world = MicroDirector(CANVAS_WIDTH, CANVAS_WIDTH)
 world.populate(final_brains.world_specification, final_brains.brain_classes)
 
 canvas = Tkinter.Canvas(master, width=CANVAS_WIDTH, height=CANVAS_HEIGHT) 
-canvas.grid(row=0, column=0, columnspan=3)
+canvas.grid(row=0, column=0)
 
-SIMULATION_TICK_DELAY_MS = 10.0
-GRAPHICS_TICK_DELAY_MS = 30.0
+SIMULATION_TICK_DELAY_MS = 20.0
+GRAPHICS_TICK_DELAY_MS = 60.0
 
 def global_simulation_tick():
   world.update(SIMULATION_TICK_DELAY_MS/1000.0)
@@ -663,13 +737,40 @@ master.after_idle(global_graphics_tick)
 
 def left_button_down(event):
   world.sel_b = (event.x, event.y)
-  world.shoot()
+  if world.ammo.get():
+    world.ammo.set(world.ammo.get() - 1)
+    world.shoot()
+
+def right_button_double(event):
+  world.sel_a = (0,0)
+  world.sel_b = (world.width, world.height)
+  world.make_selection()
+
+def right_button_move(event):
+  if world.sel_a:
+    world.sel_b = (event.x, event.y)
+
+def right_button_up(event):
+  if world.sel_a:
+    world.sel_b = (event.x, event.y)
+    world.make_selection()
 
 def right_button_down(event):
   world.issue_selection_order((event.x, event.y))
 
+def key_down(event):
+  world.issue_selection_order(event.char)
+
 master.bind('<ButtonPress-1>', left_button_down)
+master.bind('<Double-Button-2>', right_button_double)
+master.bind('<Double-Button-3>', right_button_double)
+master.bind('<B2-Motion>', right_button_move)
+master.bind('<B3-Motion>', right_button_move)
+master.bind('<ButtonRelease-2>', right_button_up)
+master.bind('<ButtonRelease-3>', right_button_up)
 master.bind('<ButtonPress-2>', right_button_down)
+master.bind('<ButtonPress-3>', right_button_down)
+master.bind('<Key>', key_down)
 master.bind('<Escape>', lambda event: master.quit())
 
 master.mainloop()

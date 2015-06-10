@@ -1,4 +1,3 @@
-
 import random
 
 # EXAMPLE STATE MACHINE
@@ -30,7 +29,7 @@ class ZombieBrain:
 
     elif self.state == "attack":
       self.body.follow(self.body.world.player)
-      self.body.set_alarm(1)
+      #self.body.set_alarm(1)
       if message == 'collide' and details['what'] == 'Player':
         # we meet again!
         player = details['who']
@@ -45,11 +44,37 @@ class PlayerBrain:
     self.has_resource = False
 
   def handle_event(self, message, details):
+    # TODO: IMPLEMENT THIS METHOD
+    #  (Use helper methods and classes to keep your code organized where
+    #  approprioate.)
 
     if message == 'order' and isinstance(details, tuple):
       self.state = 'moving'
       x, y = details
       self.body.go_to((x, y))
+    elif message == 'order' and isinstance(details, basestring):
+      if details == 'p':
+        self.body.amount -= .10
+      elif details == 'o':
+        if self.body.amount > 1.0:
+          self.body.amount = 1.0  
+        self.body.amount += .10
+      elif details == 'd':
+        x, y = self.body.position
+        x += 5
+        self.body.position = (x, y)
+      elif details == 'a':
+        x, y = self.body.position
+        x -= 5
+        self.body.position = (x, y)
+      elif details == 'w':
+        x, y = self.body.position
+        y -= 5
+        self.body.position = (x, y)
+      elif details == 's':
+        x, y = self.body.position
+        y += 5
+        self.body.position = (x, y)
 
     if message == 'collide' and details['what'] == 'Medkit':
       medkit = details['who']
@@ -64,7 +89,7 @@ class PlayerBrain:
     if message == 'collide' and details['what'] == 'Zombie':
       zombie = details['who']
       zombie.state = "attack"
-      
+
     self.body.set_alarm(1)
 
 
@@ -75,7 +100,7 @@ world_specification = {
   'obstacles': 0,
   'resources': 0,
   'players': 1,
-  'zombies': 10,
+  'zombies': 0,
   'medkit': 0,
   'ammo': 0,
 }
