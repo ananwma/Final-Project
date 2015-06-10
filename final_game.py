@@ -14,6 +14,7 @@ class MicroDirector:
     self.height = height
     self.all_objects = []
     self.player = []
+    self.zombies = []
     self.objects_by_class = collections.defaultdict(list)
     self.sel_a = None
     self.sel_b = None
@@ -22,12 +23,9 @@ class MicroDirector:
     self.ai_on_off = Tkinter.IntVar()
     self.change_text = Tkinter.StringVar()
     b = Tkinter.Button(master, textvariable=self.change_text, command=self.callback)
-    b.grid(row=1, column=3)
+    b.grid(row=1, column=0)
     self.change_text.set("Micro-Director is on")
     self.ai_on_off.set(1)
-    self.intensity = 0.0
-    self.minimum_threshold = 0.0
-    self.maximum_threshold = 1.0
     self.spawn_ammo = False
     self.spawn_health = False
     self.max_health = 1
@@ -97,7 +95,7 @@ class MicroDirector:
     canvas.delete(Tkinter.ALL)
 
     # backdrop
-    canvas.create_rectangle(0, 0, self.width, self.height, fill='grey', outline='')
+    """canvas.create_rectangle(0, 0, self.width, self.height, fill='grey', outline='')
     s = Tkinter.Label(master, text="Intensity")
     s.grid(row=1, column=0)
     t = Tkinter.Label(master, textvariable=self.current_state)
@@ -109,7 +107,7 @@ class MicroDirector:
     at = Tkinter.Label(master, text="Ammo count")
     at.grid(row=1, column=2)
     a = Tkinter.Label(master, textvariable=self.ammo)
-    a.grid(row=2, column=2)
+    a.grid(row=2, column=2)"""
 
     # child objects
     for obj in self.all_objects:
@@ -241,13 +239,7 @@ class MicroDirector:
       else:
         return (random.random()*self.width, random.random()*self.height)
 
-    self.time += dt
-
-    # update all objects
-    for obj in self.all_objects:
-      obj.update(dt)
-
-    self.set_intensity()
+    self.check_state()
     self.spawn_zombies()
     self.check_health()
     self.check_ammo()
@@ -275,9 +267,13 @@ class MicroDirector:
         a = Ammo(self)
         a.position = give_ammo()
         self.register(a)
-        self.spawn_ammo = False
         self.ammo_amount += 1
 
+    self.time += dt
+
+    # update all objects
+    for obj in self.all_objects:
+      obj.update(dt)
 
     # let brains handle collision reactions
     def handle_collision(a,b):
@@ -298,7 +294,7 @@ class MicroDirector:
 
     # collide animals with minerals with handlers
     for animal in [Player,Zombie]:
-      for mineral in [Nest,Resource,Medkit, Ammo]:
+      for mineral in [Nest,Resource,Medkit,Ammo]:
         self.eject_colliders(self.objects_by_class[animal],self.objects_by_class[mineral],handler=handle_collision)
 
     # clean up objects with negative amount values
@@ -396,7 +392,7 @@ class MicroDirector:
       self.register(m)
 
     for i in range(specification.get('ammo',0)):
-      a = Medkit(self)
+      a = Ammo(self)
       a.position = random_position()
       self.register(a)
 
@@ -496,7 +492,7 @@ class MicroDirector:
     for i in range(10): # jiggle the world around for a while so it looks pretty
       self.eject_colliders(self.all_objects,self.all_objects,randomize=True)
     
-  def set_state(self):
+  def check_state(self):
     if self.ai_on_off.get():
       if self.current_state.get() == "calm" and self.zombie_amount.get() >= 10:
         self.current_state.set("rising")
@@ -511,16 +507,6 @@ class MicroDirector:
     else:
       self.current_state.set("calm")
       self.zombie_state = "curious"
-
-  def get_state(self):
-    return self.current_state.get()
-
-  def set_intensity(self):
-    self.intensity = ((self.player.amount/10) * self.zombie_amount.get()) / 10
-    self.set_state()
-
-  def get_intensity(self):
-    return self.intensity
 
 class Controller(object):
   """base class for simulation-rate GameObject controllers"""
@@ -701,7 +687,7 @@ class Zombie(GameObject):
     self.time_to_next_decision = 0
     self.name = "Zombie"
     self.target = self.world.player
-    self.speed = 200
+    self.speed = 100
     self.radius = 10
     self.color = 'red'
 
@@ -732,10 +718,10 @@ world = MicroDirector(CANVAS_WIDTH, CANVAS_WIDTH)
 world.populate(final_brains.world_specification, final_brains.brain_classes)
 
 canvas = Tkinter.Canvas(master, width=CANVAS_WIDTH, height=CANVAS_HEIGHT) 
-canvas.grid(row=0, column=0, columnspan=4)
+canvas.grid(row=0, column=0)
 
-SIMULATION_TICK_DELAY_MS = 10.0
-GRAPHICS_TICK_DELAY_MS = 30.0
+SIMULATION_TICK_DELAY_MS = 20.0
+GRAPHICS_TICK_DELAY_MS = 60.0
 
 def global_simulation_tick():
   world.update(SIMULATION_TICK_DELAY_MS/1000.0)
@@ -759,7 +745,7 @@ def right_button_double(event):
   world.sel_b = (world.width, world.height)
   world.make_selection()
 
-def left_button_move(event):
+def right_button_move(event):
   if world.sel_a:
     world.sel_b = (event.x, event.y)
 
@@ -777,8 +763,10 @@ def key_down(event):
   world.issue_selection_order(event.char)
 
 master.bind('<ButtonPress-1>', left_button_down)
-master.bind('<Double-Button-1>', right_button_double)
-master.bind('<B1-Motion>', left_button_move)
+master.bind('<Double-Button-2>', right_button_double)
+master.bind('<Double-Button-3>', right_button_double)
+master.bind('<B2-Motion>', right_button_move)
+master.bind('<B3-Motion>', right_button_move)
 master.bind('<ButtonRelease-2>', right_button_up)
 master.bind('<ButtonRelease-3>', right_button_up)
 master.bind('<ButtonPress-2>', right_button_down)
