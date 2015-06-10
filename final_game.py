@@ -40,11 +40,12 @@ class MicroDirector:
     self.max_zombies = 45
     self.player_alive = True
     self.ammo = Tkinter.IntVar()
-    self.ammo.set(31)
+    self.ammo.set(21)
     self.accuracy = 0
     self.hit = 0
     self.shots = 0
     self.multiplier = 0
+    self.firststart = True
     print "Intensity: Calm"
 
   def callback(self):
@@ -98,7 +99,7 @@ class MicroDirector:
     """draw the whole game world to the canvas"""
 
     canvas.delete(Tkinter.ALL)
-
+    # lagged too much
     # backdrop
     """canvas.create_rectangle(0, 0, self.width, self.height, fill='grey', outline='')
     s = Tkinter.Label(master, text="Intensity")
@@ -241,7 +242,7 @@ class MicroDirector:
 
     def give_ammo():
       if self.ai_on_off.get():
-        if self.ammo_amount <= self.max_ammo and self.accuracy <= 0.5 and self.multiplier == 2:
+        if self.ammo_amount <= self.max_ammo and self.multiplier == 2:
           where = self.bbox(self.player)
           self.multiplier = 1
           if where == "q1":
@@ -287,6 +288,8 @@ class MicroDirector:
         self.spawn_health = False
       if self.spawn_ammo and self.ammo_amount < self.max_ammo:
         i = 0
+        if self.accuracy >= 0.5:
+          self.multiplier = 1
         while i <= self.multiplier:
           a = Ammo(self)
           a.position = give_ammo()
@@ -408,7 +411,7 @@ class MicroDirector:
     for i in range(specification.get('nests',0)):
       n = Nest(self)
       n.position = random_position()
-      self.register(n)
+      self.register(n)  
 
     for i in range(specification.get('obstacles',0)):
       o = Obstacle(self)
@@ -488,6 +491,7 @@ class MicroDirector:
     print "Accuracy: ", self.accuracy
     if self.ammo.get() == 0:
       print "Out of ammo!"
+    print "Ammo: ", self.ammo.get()
 
   def make_selection(self):
     """build selection from the set of units contained in the sel_a-to-sel_b
