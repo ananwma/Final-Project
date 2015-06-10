@@ -41,6 +41,11 @@ class MicroDirector:
     self.player_alive = True
     self.ammo = Tkinter.IntVar()
     self.ammo.set(31)
+    self.accuracy = 0
+    self.hit = 0
+    self.shots = 0
+    self.multiplier = 0
+    print "Intensity: Calm"
 
   def callback(self):
     if not self.ai_on_off.get():
@@ -210,7 +215,18 @@ class MicroDirector:
 
     def give_health():
       if self.ai_on_off.get():
-        if self.health_amount <= self.max_health:
+        if self.health_amount <= self.max_health and self.multiplier == 2:
+          where = self.bbox(self.player)
+          self.multiplier = 1
+          if where == "q1":
+            return (780, 580)
+          elif where == "q2":
+            return (20, 20)
+          elif where == "q3":
+            return (780, 20)
+          else: #where == "q4"
+            return (20, 580)
+        elif self.health_amount <= self.max_health:
           where = self.bbox(self.player)
           if where == "q1":
             return (20, 20)
@@ -225,13 +241,23 @@ class MicroDirector:
 
     def give_ammo():
       if self.ai_on_off.get():
-        if self.ammo_amount <= self.max_ammo:
+        if self.ammo_amount <= self.max_ammo and self.accuracy <= 0.5 and self.multiplier == 2:
+          where = self.bbox(self.player)
+          self.multiplier = 1
+          if where == "q1":
+            return (765, 35)
+          elif where == "q2":
+            return (35, 595)
+          elif where == "q3":
+            return (765, 565) 
+          else: #where == "q4"
+            return (45, 45)    
+        elif self.ammo_amount <= self.max_ammo:
           where = self.bbox(self.player)
           if where == "q1":
             return (45, 45)
           elif where == "q2":
-            return (765, 35
-              )
+            return (765, 35)
           elif where == "q3":
             return (35, 595)
           else: #where == "q4"
@@ -245,18 +271,29 @@ class MicroDirector:
     self.check_ammo()
 
     if self.ai_on_off.get():
+      if (self.current_state.get() == "calm" or self.current_state.get() == "relaxing"):
+        self.multiplier = 1
+      elif (self.current_state.get() == "insane" or self.current_state.get() == "rising"):
+        self.multiplier = 2
+      #print self.spawn_health and self.health_amount < self.max_health
       if self.spawn_health and self.health_amount < self.max_health:
-        h = Medkit(self)
-        h.position = give_health()
-        self.register(h)
+        i = 0
+        while i <= self.multiplier:
+          h = Medkit(self)
+          h.position = give_health()
+          self.register(h)
+          self.health_amount += 1
+          i = i + 1
         self.spawn_health = False
-        self.health_amount += 1
       if self.spawn_ammo and self.ammo_amount < self.max_ammo:
-        a = Ammo(self)
-        a.position = give_ammo()
-        self.register(a)
+        i = 0
+        while i <= self.multiplier:
+          a = Ammo(self)
+          a.position = give_ammo()
+          self.register(a)
+          self.ammo_amount += 1
+          i = i + 1
         self.spawn_ammo = False
-        self.ammo_amount += 1
     else:
       if self.spawn_health and self.health_amount < 5:
         h = Medkit(self)
@@ -268,7 +305,6 @@ class MicroDirector:
         a.position = give_ammo()
         self.register(a)
         self.ammo_amount += 1
-
     self.time += dt
 
     # update all objects
@@ -305,7 +341,7 @@ class MicroDirector:
         obj.amount = 1.0
 
   def check_health(self):
-    if self.player.amount < .30 and self.current_state.get() == "insane":
+    if self.player.amount < .30:
       self.spawn_health = True
 
   def check_ammo(self):
@@ -318,7 +354,7 @@ class MicroDirector:
       if o1 != o2:
         dx = o1.position[0] - o2.position[0]
         dy = o1.position[1] - o2.position[1]
-        dist = math.sqrt(dx*dx+dy*dy)
+        dist = math.sqrt(dx*dx+dy*dy) + 0.001
         if dist < o1.radius + o2.radius:
           extra = dist - (o1.radius + o2.radius)
           fraction = extra / dist
@@ -440,12 +476,18 @@ class MicroDirector:
           obj.brain.handle_event('order',order)
 
   def shoot(self):
+    self.shots = self.shots + 1.0
     for obj in self.all_objects:
       if obj.name == 'Zombie':
         xdiff = abs(obj.position[0] - self.sel_b[0])
         ydiff = abs(obj.position[1] - self.sel_b[1])
         if (math.sqrt((math.pow(xdiff, 2)) + (math.pow(ydiff, 2)))) <= 10:
           obj.destroy()
+          self.hit = self.hit + 1.0
+    self.accuracy = self.hit/self.shots
+    print "Accuracy: ", self.accuracy
+    if self.ammo.get() == 0:
+      print "Out of ammo!"
 
   def make_selection(self):
     """build selection from the set of units contained in the sel_a-to-sel_b
@@ -482,27 +524,39 @@ class MicroDirector:
       else:
         return (random.random()*self.width, random.random()*self.height)
 
-    if (self.current_state.get() == "calm" or self.current_state.get() == "rising") and self.zombie_amount.get() < self.max_zombies:
-      m = Zombie(self)
-      m.position = set_spawn_point(self.player)
-      m.brain = final_brains.brain_classes['zombie'](m)
-      m.set_alarm(0)
-      self.register(m)
-      self.zombie_amount.set(self.zombie_amount.get() + 1)
-
+    if (self.current_state.get() == "calm") and self.zombie_amount.get() < self.max_zombies:
+      if (self.time - (5.0*self.zombie_amount.get()) >= 0):
+        m = Zombie(self)
+        m.position = set_spawn_point(self.player)
+        m.brain = final_brains.brain_classes['zombie'](m)
+        m.set_alarm(0)
+        self.register(m)
+        self.zombie_amount.set(self.zombie_amount.get() + 1)
+    if (self.current_state.get() == "rising") and self.zombie_amount.get() < self.max_zombies:
+      if (self.time - (2.0*self.zombie_amount.get()) >= 0):
+        m = Zombie(self)
+        m.position = set_spawn_point(self.player)
+        m.brain = final_brains.brain_classes['zombie'](m)
+        m.set_alarm(0)
+        self.register(m)
+        self.zombie_amount.set(self.zombie_amount.get() + 1)
     for i in range(10): # jiggle the world around for a while so it looks pretty
       self.eject_colliders(self.all_objects,self.all_objects,randomize=True)
     
   def check_state(self):
     if self.ai_on_off.get():
-      if self.current_state.get() == "calm" and self.zombie_amount.get() >= 10:
+      if self.current_state.get() == "calm" and self.zombie_amount.get() >= 5:
         self.current_state.set("rising")
         self.zombie_state = "attack"
+        print "Intensity: Rising"
       elif self.current_state.get() == "rising" and self.zombie_amount.get() == self.max_zombies:
         self.current_state.set("insane")
+        print "Intensity: insane"
       elif self.current_state.get() == "insane" and self.zombie_amount.get() <= self.max_zombies/3:
         self.current_state.set("relaxing")
+        print "Intensity: Relaxing"
       elif self.current_state.get() == "relaxing" and self.zombie_amount.get() == 0:
+        print "Intensity: Calm"
         self.current_state.set("calm")
         self.zombie_state = "curious"
     else:

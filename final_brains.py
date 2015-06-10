@@ -23,9 +23,8 @@ class ZombieBrain:
         self.body.set_alarm(1)
       elif message == 'collide' and details['what'] == 'Player':
         # a slug bumped into us; get curious
-        self.state = "attack"
-        self.body.set_alarm(1) # think about this for a sec
-        self.target = details['who']
+        player = details['who']
+        player.amount -= 0.01 
 
     elif self.state == "attack":
       self.body.follow(self.body.world.player)
