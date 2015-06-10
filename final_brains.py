@@ -30,7 +30,7 @@ class ZombieBrain:
 
     elif self.state == "attack":
       self.body.follow(self.body.world.player)
-      self.body.set_alarm(1)
+      #self.body.set_alarm(1)
       if message == 'collide' and details['what'] == 'Player':
         # we meet again!
         player = details['who']
@@ -90,7 +90,7 @@ class PlayerBrain:
     if message == 'collide' and details['what'] == 'Zombie':
       zombie = details['who']
       zombie.state = "attack"
-      
+
     self.body.set_alarm(1)
 
 
